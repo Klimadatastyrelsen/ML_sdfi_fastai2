@@ -8,7 +8,9 @@ Machine learning framework developed and maintained by **KDS** for performing **
 
 ### Conda version
 
-Use **conda** or **mamba** (Miniforge includes conda; mamba is optional). Clone all four shared-env repos as siblings (`ML_Production`, `ML_geo_production`, `ML_sdfi_fastai2`, `multi_channel_dataset_creation`), then run the steps below **from this repository root**. The same files and commands exist in each repo and produce the same `ML_sdfi` environment.
+Use **conda** or **mamba** (Miniforge includes conda; mamba is optional). Run the steps below **from this repository root**.
+
+**Repository layout:** clone at least **`ML_sdfi_fastai2`** and **[`multi_channel_dataset_creation`](https://github.com/SDFIdk/multi_channel_dataset_creation)** as siblings (same parent folder). `ML_Production` and `ML_geo_production` are optional (production pipelines). `install_local_repos.sh` skips any sibling that is not present.
 
 ```sh
 conda env create --file environment.yml   # once
@@ -30,7 +32,65 @@ python -c "import torch; print('CUDA available:', torch.cuda.is_available()); pr
 
 You should see `CUDA available: True` and your GPU name.
 
-**Windows:** After the steps above, run once: `pip install --force-reinstall pillow rasterio` so PIL and rasterio use pip's Windows wheels.
+### Windows (conda / mamba)
+
+**Prerequisites**
+
+- [Miniforge](https://github.com/conda-forge/miniforge) or Anaconda with `conda` on PATH
+- NVIDIA GPU and driver (CUDA required for training and automated verification)
+- [Git for Windows](https://git-scm.com/download/win) (for `bash install_*.sh`, or use the PowerShell PyTorch script below)
+- Sibling clone: [`multi_channel_dataset_creation`](https://github.com/SDFIdk/multi_channel_dataset_creation) next to this repo
+
+**Install (PowerShell, from `ML_sdfi_fastai2` root)**
+
+```powershell
+conda env remove -n ML_sdfi -y   # optional: only when recreating the env
+conda env create -f environment.yml
+conda activate ML_sdfi
+
+# PyTorch (pick one)
+.\install_pytorch.ps1
+# or: bash install_pytorch.sh
+
+pip install --pre --no-build-isolation -r requirements_pip.txt
+bash install_local_repos.sh
+pip install -r requirements_extra.txt
+pip install --force-reinstall pillow rasterio
+pip install "numpy>=1.26,<2"   # if pip upgraded numpy to 2.x
+```
+
+`install_pytorch.ps1` matches `install_pytorch.sh` (cu124 by default; cu128-nightly on Blackwell). If the CUDA check fails with **“NVIDIA driver on your system is too old”** for cu124, the script retries **cu118** automatically. You can also install manually:
+
+```powershell
+pip install --force-reinstall torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install "numpy>=1.26,<2"
+```
+
+**Prepare example data (once, before verification)**
+
+```powershell
+cd ..\multi_channel_dataset_creation
+python src/multi_channel_dataset_creation/create_dataset.py --dataset_config configs/create_dataset_example_dataset.ini
+cd ..\ML_sdfi_fastai2
+```
+
+**Verify on Windows**
+
+```powershell
+$env:GTIFF_SRS_SOURCE = "EPSG"
+$env:PYTHONIOENCODING = "utf-8"
+python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
+python verify_functionality.py
+python check_logs.py
+```
+
+Verification uses `verify_functionality.py`, `check_logs.py`, and `verify_subprocess_streaming.py` in this repo root (no other repos required except `multi_channel_dataset_creation` for example data).
+
+**Windows troubleshooting**
+
+- Run commands from a **drive-letter** path (e.g. `F:\...\ML_sdfi_fastai2`), not a UNC path (`\\server\share\...`), when training or verifying on a network share.
+- Prefer the environment’s `python.exe` directly instead of `conda run` if FastAI progress-bar characters cause Unicode errors in conda.
+- **GPU memory:** on ~11 GB cards, large transformer tests may need smaller models, `batch_size = 1`, or `max_size` + `downsize` in test configs (see `configs/example_configs/test_swin_upernet.ini` and `test_convnextv2_upernet.ini`).
 
 ### Docker version
 
@@ -78,6 +138,8 @@ Automated verification (CUDA check — fails if CUDA unavailable; trains each `c
 python verify_functionality.py
 python check_logs.py
 ```
+
+Scripts live in this repo root: `verify_functionality.py`, `check_logs.py`, and `verify_subprocess_streaming.py`. Requires the example dataset in sibling `multi_channel_dataset_creation` (run `create_dataset.py` once; see Windows section above).
 
 This branch has five `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V2, Swin UPerNet, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
 
