@@ -174,7 +174,11 @@ class SegFormerWrapper(nn.Module):
                 self._adapt_input_channels(n_in)
     
     def _adapt_input_channels(self, n_in):
-        old_conv = self.model.segformer.encoder.patch_embeddings[0].proj
+        segformer = self.model.segformer
+        if hasattr(segformer, "encoder"):
+            old_conv = segformer.encoder.patch_embeddings[0].proj
+        else:
+            old_conv = segformer.stages[0].patch_embeddings.proj
         new_conv = nn.Conv2d(
             n_in, 
             old_conv.out_channels,
@@ -189,7 +193,10 @@ class SegFormerWrapper(nn.Module):
         if n_in >= 3 and old_conv.weight.shape[1] == 3:
             with torch.no_grad():
                 new_conv.weight[:, :3] = old_conv.weight
-        self.model.segformer.encoder.patch_embeddings[0].proj = new_conv
+        if hasattr(segformer, "encoder"):
+            segformer.encoder.patch_embeddings[0].proj = new_conv
+        else:
+            segformer.stages[0].patch_embeddings.proj = new_conv
     
     def forward(self, x):
         outputs = self.model(pixel_values=x)

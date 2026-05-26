@@ -1,47 +1,53 @@
-# PyTorch 2.6+ required by transformers (CVE-2025-32434)
-FROM pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
+# Shared ML_sdfi image — all four sibling repos required in build context.
+# Build from parent directory containing ML_Production, ML_geo_production,
+# multi_channel_dataset_creation, and ML_sdfi_fastai2:
+#   docker build -f ML_Production/Dockerfile -t ml_sdfi:latest .
+#
+# Pre-check (recommended):
+#   /path/to/orchestrator/check_docker_build_context.sh .
+
+FROM condaforge/mambaforge:24.11.3-0
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
-    GDAL_CONFIG=/usr/bin/gdal-config \
-    CPLUS_INCLUDE_PATH=/usr/include/gdal \
-    C_INCLUDE_PATH=/usr/include/gdal
+    CONDA_ENV_NAME=ML_sdfi
 
-# Install system dependencies (libgl1 for opencv/cv2)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gdal-bin libgdal-dev libspatialindex-dev git build-essential \
-    libgl1 libglib2.0-0 \
+    git build-essential libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
-
-
-#dynamically queries the version of the system library (libgdal) and forces pip to install the exact matching Python bindings version.
-RUN export GDAL_VERSION=$(gdal-config --version) && \
-    pip install --no-cache-dir "gdal==$GDAL_VERSION.*"
-# Updated fastai to 2.7.17 and mmcv 2.1.0 for mmsegmentation 1.2.2 compatibility
-# Install setuptools first so mmcv build (if from source) has pkg_resources
-# fastai pins torch<2.5; reinstall torch 2.6 afterward (transformers CVE-2025-32434 requires torch>=2.6)
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir fastai==2.7.17 transformers safetensors openmim ftfy && \
-    pip install --no-cache-dir "torch>=2.6" "torchvision" --upgrade --force-reinstall && \
-    pip install --no-cache-dir mmengine && \
-    pip install --no-cache-dir --no-build-isolation mmcv==2.1.0 -f https://download.openmmlab.com/mmcv/dist/cu126/torch2.6/index.html && \
-    pip install --no-cache-dir mmsegmentation==1.2.2
 
 WORKDIR /workspace
 
-# Copy requirements and install (--no-build-isolation for git deps that need pkg_resources)
-COPY requirements.txt .
-RUN pip install --no-cache-dir --no-build-isolation -r requirements.txt
+# Copy all four sibling repos (build context = parent directory)
+COPY ML_Production /workspace/repos/ML_Production
+COPY ML_geo_production /workspace/repos/ML_geo_production
+COPY multi_channel_dataset_creation /workspace/repos/multi_channel_dataset_creation
+COPY ML_sdfi_fastai2 /workspace/repos/ML_sdfi_fastai2
 
-# Copy and install the project package
-COPY . .
-RUN pip install --no-cache-dir -e .
+# Create conda env and install (same steps as README, from ML_Production root)
+RUN cd /workspace/repos/ML_Production && \
+    mamba env create -f environment.yml && \
+    bash -lc 'source /opt/conda/etc/profile.d/conda.sh && \
+      conda activate ML_sdfi && \
+      export LD_LIBRARY_PATH=${CONDA_PREFIX}/lib && \
+      export INSTALL_PYTORCH_NO_GPU=1 && \
+      bash install_pytorch.sh && \
+      pip install --pre --no-build-isolation -r requirements_pip.txt && \
+      bash install_local_repos.sh && \
+      pip install -r requirements_extra.txt && \
+      gdal_ver=$(gdal-config --version) && \
+      pip install --force-reinstall --no-cache-dir gdal==${gdal_ver}.* && \
+      mamba install -y -c conda-forge --force-reinstall libtiff libjpeg-turbo libdeflate'
 
-# Ensure torch 2.6.x after all installs (transformers CVE-2025-32434; avoid 2.10 for fastai compatibility)
-RUN pip install --no-cache-dir "torch>=2.6,<2.7" "torchvision" --upgrade --force-reinstall
+# Shared models symlink (same as previous ML_Production Docker layout)
+RUN rm -rf /workspace/repos/ML_geo_production/models && \
+    ln -s ../ML_Production/models /workspace/repos/ML_geo_production/models
 
-# Patch fastai _FakeLoader for PyTorch 2.6+ (DataLoader expects loader.in_order)
-COPY patch_fastai_fakeloader.py /tmp/
-RUN python /tmp/patch_fastai_fakeloader.py
+ENV PATH="/opt/conda/envs/ML_sdfi/bin:${PATH}" \
+    LD_LIBRARY_PATH="/opt/conda/envs/ML_sdfi/lib" \
+    CONDA_DEFAULT_ENV=ML_sdfi \
+    GTIFF_SRS_SOURCE=EPSG
+
+WORKDIR /workspace/repos/ML_Production
 
 CMD ["/bin/bash"]

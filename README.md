@@ -8,35 +8,20 @@ Machine learning framework developed and maintained by **KDS** for performing **
 
 ### Conda version
 
-Use **conda** or **mamba** (Miniforge includes conda; mamba is optional). From this repository root (or from a parent folder where all four shared-env repos are cloned as siblings):
+Use **conda** or **mamba** (Miniforge includes conda; mamba is optional). Clone all four shared-env repos as siblings (`ML_Production`, `ML_geo_production`, `ML_sdfi_fastai2`, `multi_channel_dataset_creation`), then run the steps below **from this repository root**. The same files and commands exist in each repo and produce the same `ML_sdfi` environment.
 
 ```sh
-conda env create --file environment.yml
+conda env create --file environment.yml   # once
 conda activate ML_sdfi
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH   # Linux
+
+bash install_pytorch.sh
 pip install --pre --no-build-isolation -r requirements_pip.txt
+bash install_local_repos.sh
+pip install -r requirements_extra.txt
 ```
 
-This installs PyTorch nightly with CUDA 12.8 (for NVIDIA Blackwell / RTX 50-series / sm_120 GPUs), fastai, git-based deps, and this package in editable mode.
-
-To install the other shared-env repos and extra deps, from the **project root** (parent of all four repos):
-
-```sh
-cd ML_Production && bash install_local_repos.sh && pip install -r requirements_extra.txt && cd ..
-```
-
-**Other GPUs:** To use stable PyTorch instead of nightly (e.g. cu121), after the steps above run:
-
-```sh
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-```
-
-(Adjust `cu121` to your CUDA version; see [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally).)
-
-**Use conda's libstdc++ (Linux):** On some Linux systems, set this before running Python:
-
-```sh
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-```
+`install_pytorch.sh` auto-selects the PyTorch CUDA build (nightly cu128 for Blackwell / sm_12.0, stable cu124 for other NVIDIA GPUs). CUDA is required. Override with e.g. `PYTORCH_CUDA=cu121 bash install_pytorch.sh` (see [pytorch.org/get-started/locally](https://pytorch.org/get-started/locally)).
 
 **Verify CUDA support:**
 
@@ -80,7 +65,7 @@ docker run --gpus all --shm-size=80g -it \
 
 ## Verify that everything works
 
-Check that CUDA is available and that training runs without errors:
+Manual check — CUDA smoke test:
 
 ```sh
 python -c "import torch; print('CUDA available:', torch.cuda.is_available()); print('Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
@@ -88,14 +73,14 @@ python -c "import torch; print('CUDA available:', torch.cuda.is_available()); pr
 
 You should see `CUDA available: True` and your GPU name.
 
-To verify all training configs that start with `test` in `configs/example_configs/`, run:
+Automated verification (CUDA check — fails if CUDA unavailable; trains each `configs/example_configs/test*.ini` config; writes `verification.log`):
 
 ```sh
 python verify_functionality.py
 python check_logs.py
 ```
 
-`verify_functionality.py` runs a CUDA check and then trains with each config matching `configs/example_configs/test*.ini`. There should be no errors in the log; `check_logs.py` reports pass or fail.
+This branch has five `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V2, Swin UPerNet, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
 
 ---
 
@@ -179,7 +164,7 @@ Options:
 - `--model_file`: If set, only this filename is downloaded; otherwise all `.pth` files in the repo are downloaded
 - `--token_file`: Path to a file containing your Hugging Face token (for private repos). Default: `../laz-superpoint_transformer/hftoken_write.txt` relative to the project root
 
-To use a downloaded model for inference, point your inference config’s `model_to_load` (or equivalent) to the downloaded file, e.g. `.../bygningsudpegning/andringsudpegning_1km2benchmark_iter_73.pth`.
+To use a downloaded model for inference, point your inference config’s `model_to_load` to the downloaded file, e.g. `.../bygningsudpegning/andringsudpegning_1km2benchmark_iter_73.pth`.
 
 #### Upload models to Hugging Face
 
