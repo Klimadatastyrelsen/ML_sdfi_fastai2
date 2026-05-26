@@ -42,8 +42,18 @@ def require_cuda() -> int:
     return 0
 
 
+def _repo_root() -> Path:
+    root = Path(__file__).parent
+    # On Windows, resolve() can turn a mapped drive (F:) into a UNC path that cmd rejects.
+    if os.name == "nt" and str(root.resolve()).startswith("\\\\"):
+        cwd = Path(os.getcwd())
+        if cwd.name == root.name:
+            return cwd
+    return root
+
+
 def main():
-    repo_root = Path(__file__).resolve().parent
+    repo_root = _repo_root()
     configs_dir = repo_root / "configs" / "example_configs"
 
     with open(LOG_PATH, "w", encoding="utf-8"):
@@ -62,6 +72,13 @@ def main():
             return 0
 
         for config_path in test_configs:
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:
+                pass
             rel = config_path.relative_to(repo_root)
             log_section(LOG_PATH, f"=== train.py --config {rel} ===")
             ret = stream_run(
