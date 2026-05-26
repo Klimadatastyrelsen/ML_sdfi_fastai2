@@ -1,0 +1,20 @@
+# Existing standard libraries
+numpy<2.0.0
+geopandas
+rasterio
+fiona
+psutil
+ipython
+jupyter
+matplotlib
+psycopg2-binary
+reportlab
+paramiko
+sqlalchemy
+huggingface_hub
+
+
+# Project-specific packages from Git
+git+https://github.com/rasmuspjohansson/albumentations-multi-channels
+git+https://github.com/walkwithfastai/walkwithfastai.github.io
+git+https://github.com/SDFIdk/multi_channel_dataset_creation.git

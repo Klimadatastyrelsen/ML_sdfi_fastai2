@@ -170,5 +170,5 @@ if __name__ == "__main__":
 
     create_summary(log_files=args.LogFile, output_sumary_file=args.OutputPrefix+"sumary.txt")
     values_to_plot=['train_loss', 'valid_loss']
-    # values_to_plot = ["valid_accuracy"]
+    #values_to_plot = ["valid_accuracy"]
     create_plot(log_files=args.LogFile,  output_plot_file=args.OutputPrefix+"plot."+image_format,values_to_plot=values_to_plot, image_format=image_format,use_log_format=args.plotlog,ylim=[0, args.ymax],show=args.show,value_in_name=args.min_or_max)

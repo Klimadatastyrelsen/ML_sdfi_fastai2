@@ -1,0 +1,27 @@
+services:
+  dev-env:
+    build: .
+    container_name: geospatial_dev
+    runtime: nvidia  # Add this line
+    ipc: host
+    volumes:
+      - .:/workspace
+      - /mnt/T/mnt/:/mnt/T/mnt/
+      - /home/rajoh/projects:/home/projects
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PYTHONPATH=/workspace/src
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    stdin_open: true
+    tty: true
+    working_dir: /workspace

@@ -1,0 +1,12 @@
+# Extra pip packages after requirements_pip.txt and install_local_repos.sh.
+#
+# Required for ML_sdfi_fastai2 (training / verify / SOTA models):
+pyproj==3.6.1
+transformers
+#
+# Optional (used by sibling repos ML_Production / ML_geo_production; safe to install unused):
+paramiko
+sqlalchemy
+tabulate
+geoalchemy2
+oracledb

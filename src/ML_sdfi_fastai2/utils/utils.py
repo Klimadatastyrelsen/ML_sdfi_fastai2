@@ -10,7 +10,7 @@ import sys
 def get_model(model_name):
     """
     :param model_name: the model name as a string
-    :return: a function that creates a fastai model
+    :return: a function that creates a fastai model or the model name string for special cases
     """
 
     if  model_name == "resnet18":
@@ -24,16 +24,28 @@ def get_model(model_name):
     elif model_name == "inception_v3":
         return inception_v3
     elif model_name == "simple_convnet":
-
         return pytorch_models.create_custom_model
-    elif model_name in ["efficientnetv2_s" ,"efficientnetv2_m","efficientnetv2_l","efficientnetv2_rw_s.ra2_in1k","efficientnetv2_rw_m.agc_in1k","tf_efficientnetv2_l.in21k","tf_efficientnetv2_xl.in21k","resnet50.a1_in1k"]:
-        #using a timm  backbone. this will be handeled by the wwf.timm_learner
+    elif model_name in ["efficientnetv2_s", "efficientnetv2_m", "efficientnetv2_l", 
+                        "efficientnetv2_rw_s.ra2_in1k", "efficientnetv2_rw_m.agc_in1k", 
+                        "tf_efficientnetv2_l.in21k", "tf_efficientnetv2_xl.in21k", "resnet50.a1_in1k"]:
+        # Using a timm backbone. This will be handled by the wwf.timm_learner
         return model_name
-    elif model_name in ["segformer-b1"]:
-        #segfomrer models will be treated differently
+    elif model_name in ["segformer-b0", "segformer-b1", "segformer-b2", "segformer-b3", 
+                        "segformer-b4", "segformer-b5"]:
+        # SegFormer models will be treated differently
         return model_name
+    elif model_name in ["swin-small-upernet","swin-small-upernet", "swin-base-upernet", "swin-large-upernet"]:
+        # Swin + UPerNet models
+        return model_name
+    elif model_name in [
+        "convnextv2_tiny_upernet",
+        "convnextv2_small_upernet",
+        "convnextv2_base_upernet",
+        "convnextv2_large_upernet"]:
+        return model_name
+
     else:
-        sys.exit("utils.utils.py get_mode(model_name) did not recognize model_name:"+str(model_name))
+        sys.exit("utils.utils.py get_model(model_name) did not recognize model_name: " + str(model_name))
 
 
 def load_settings_from_config_file(config_file_path):
@@ -93,5 +105,3 @@ def save_dictionary_to_disk(experiment_settings_dict):
     #Store all job configurations as json file in the log folder
     with open(experiment_settings_dict["log_folder"]/Path(experiment_settings_dict["job_name"]+ "_job_dictionary.json"), "w") as out_file:
         json.dump(json_serializable_dictionary, out_file, indent = 6)
-
-
