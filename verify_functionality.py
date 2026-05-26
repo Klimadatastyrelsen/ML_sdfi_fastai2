@@ -13,8 +13,8 @@ LOG_PATH = Path(__file__).resolve().parent / "verification.log"
 if len(sys.argv) > 1:
     LOG_PATH = Path(sys.argv[1])
 
-ORCH = Path(__file__).resolve().parent.parent.parent.parent
-sys.path.insert(0, str(ORCH))
+REPO_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(REPO_ROOT))
 from verify_subprocess_streaming import log_message, log_section, stream_run  # noqa: E402
 
 TIMEOUT_PER_CONFIG = int(os.environ.get("VERIFY_TRAIN_TIMEOUT", "600"))
