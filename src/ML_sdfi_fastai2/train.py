@@ -8,7 +8,7 @@ Supported architectures:
 - timm UNet (EfficientNet / ConvNeXt)
 - SegFormer
 - Swin + UPerNet
-- ConvNeXt V2 + UPerNet
+- ConvNeXt V1 + UPerNet
 """
 
 import os
@@ -289,24 +289,24 @@ class SwinUPerNetWrapper(nn.Module):
 
 
 # ---------------------------------------------------------------------
-# ConvNeXt V2 + UPerNet (transformers-based)
+# ConvNeXt V1 + UPerNet (transformers-based)
 # ---------------------------------------------------------------------
-class ConvNeXtV2UPerNetWrapper(nn.Module):
-    """ConvNeXt V2 backbone + UPerNet decoder using transformers library"""
+class ConvNeXt1UPerNetWrapper(nn.Module):
+    """ConvNeXt V1 backbone + UPerNet decoder using transformers library"""
     def __init__(self, backbone_name, num_classes, n_in, pretrained=True):
         super().__init__()
         try:
             from transformers import AutoModelForSemanticSegmentation, UperNetConfig
         except ImportError:
             raise ImportError(
-                "ConvNeXtV2+UPerNet requires transformers: pip install transformers"
+                "ConvNeXt V1 + UPerNet requires transformers: pip install transformers"
             )
         
         self.num_classes = num_classes
         self.n_in = n_in
         
         # Map backbone names to HuggingFace model IDs
-        arch = backbone_name.replace("convnextv2_", "")
+        arch = backbone_name.replace("convnext1_", "")
         model_map = {
             "tiny": "openmmlab/upernet-convnext-tiny",
             "small": "openmmlab/upernet-convnext-small", 
@@ -432,10 +432,10 @@ class BasicTrainingFastai2:
         metric = self._metric(ignore)
         model_id = cfg["model"]
 
-        # ConvNeXt V2 + UPerNet
-        if isinstance(model_id, str) and model_id.endswith("_upernet"):
-            print("Building ConvNeXt V2 + UPerNet")
-            model = ConvNeXtV2UPerNetWrapper(
+        # ConvNeXt V1 + UPerNet
+        if isinstance(model_id, str) and model_id.startswith("convnext1_") and model_id.endswith("_upernet"):
+            print("Building ConvNeXt V1 + UPerNet")
+            model = ConvNeXt1UPerNetWrapper(
                 backbone_name=model_id.replace("_upernet", ""),
                 num_classes=self._num_classes(),
                 n_in=len(cfg["means"]),

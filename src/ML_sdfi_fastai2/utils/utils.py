@@ -38,10 +38,10 @@ def get_model(model_name):
         # Swin + UPerNet models
         return model_name
     elif model_name in [
-        "convnextv2_tiny_upernet",
-        "convnextv2_small_upernet",
-        "convnextv2_base_upernet",
-        "convnextv2_large_upernet"]:
+        "convnext1_tiny_upernet",
+        "convnext1_small_upernet",
+        "convnext1_base_upernet",
+        "convnext1_large_upernet"]:
         return model_name
 
     else:
