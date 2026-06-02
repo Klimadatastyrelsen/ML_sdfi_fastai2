@@ -43,6 +43,7 @@ import pathlib
 import shutil
 import utils.utils as sdfi_utils
 from wwf.vision.timm import *
+from utils.timm_unet_utils import timm_unet_splitter
 from fastai.vision.all import GradientAccumulation
 
 from fastai.callback.core import Callback
@@ -458,7 +459,8 @@ class basic_traininFastai2:
 
             learn = timm_unet_learner(dls, self.experiment_settings_dict["model"], loss_func=a_loss_func,metrics=valid_accuracy,bottleneck=experiment_settings_dict["bottleneck"], wd=1e-2,
                              path= self.experiment_settings_dict["log_folder"],pretrained=pretrained,
-                             model_dir=self.experiment_settings_dict["model_folder"] ,n_in=len(experiment_settings_dict["means"]))#callback_fns=[partial(CSVLogger, filename= experiment_settings_dict["job_name"], append=True)])
+                             model_dir=self.experiment_settings_dict["model_folder"] ,n_in=len(experiment_settings_dict["means"]),
+                             splitter=timm_unet_splitter)
         else:
             # fastai asumes 'model_dir' to be a path that is relative to 'path'. In order to make model_dir independent of 'path' we need to make the model_dir path absolute with 'resolve()' first.
             learn = unet_learner(dls, self.experiment_settings_dict["model"], loss_func=a_loss_func,metrics=valid_accuracy, wd=1e-2,

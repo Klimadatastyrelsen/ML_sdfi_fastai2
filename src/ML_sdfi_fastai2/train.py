@@ -35,6 +35,8 @@ import sdfi_dataset
 
 from wwf.vision.timm import timm_unet_learner
 
+from utils.timm_unet_utils import timm_unet_splitter
+
 
 # ---------------------------------------------------------------------
 # Determinism
@@ -503,6 +505,7 @@ class BasicTrainingFastai2:
                 n_in=len(cfg["means"]),
                 bottleneck=cfg.get("bottleneck"),
                 pretrained=cfg.get("pretrained", True),
+                splitter=timm_unet_splitter,
                 path=cfg["log_folder"],
                 model_dir=cfg["model_folder"]
             )
