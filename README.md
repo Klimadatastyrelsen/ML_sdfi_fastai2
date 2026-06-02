@@ -90,7 +90,7 @@ Verification uses `verify_functionality.py`, `check_logs.py`, and `verify_subpro
 
 - Run commands from a **drive-letter** path (e.g. `F:\...\ML_sdfi_fastai2`), not a UNC path (`\\server\share\...`), when training or verifying on a network share.
 - Prefer the environment’s `python.exe` directly instead of `conda run` if FastAI progress-bar characters cause Unicode errors in conda.
-- **GPU memory:** on ~11 GB cards, large transformer tests may need smaller models, `batch_size = 1`, or `max_size` + `downsize` in test configs (see `configs/example_configs/test_swin_upernet.ini` and `test_convnextv2_upernet.ini`).
+- **GPU memory:** on ~11 GB cards, large transformer tests may need smaller models, `batch_size = 1`, or `max_size` + `downsize` in test configs (see `configs/example_configs/test_swin_upernet.ini` and `test_convnext1_upernet.ini`).
 
 ### Docker version
 
@@ -141,7 +141,7 @@ python check_logs.py
 
 Scripts live in this repo root: `verify_functionality.py`, `check_logs.py`, and `verify_subprocess_streaming.py`. Requires the example dataset in sibling `multi_channel_dataset_creation` (run `create_dataset.py` once; see Windows section above).
 
-This branch has five `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V2, Swin UPerNet, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
+This branch has five `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V1 + UPerNet, Swin UPerNet, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
 
 ---
 
