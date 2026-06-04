@@ -2,7 +2,9 @@
 #
 # Required for ML_sdfi_fastai2 (training / verify / SOTA models):
 pyproj==3.6.1
-transformers
+# transformers 5.x requires torch APIs not present in stable torch 2.6 (cu124/cu121)
+transformers>=4.44,<5
+safetensors>=0.4.0
 #
 # Optional (used by sibling repos ML_Production / ML_geo_production; safe to install unused):
 paramiko
