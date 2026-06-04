@@ -32,6 +32,18 @@ python -c "import torch; print('CUDA available:', torch.cuda.is_available()); pr
 
 You should see `CUDA available: True` and your GPU name.
 
+**Transformers / Hugging Face models (SegFormer, Swin UPerNet, ConvNeXt UPerNet):**
+
+- `requirements_extra.txt` pins `transformers>=4.44,<5` for compatibility with torch 2.6 from `install_pytorch.sh`. Do not upgrade to transformers 5.x unless you also upgrade PyTorch.
+- After install, check versions:
+
+```sh
+python -c "import torch, transformers; print('torch', torch.__version__); print('transformers', transformers.__version__)"
+```
+
+- Pretrained Swin weights are downloaded from Hugging Face Hub on first use (`openmmlab/upernet-swin-small`) and cached under `~/.cache/huggingface/hub/`. The first run needs internet unless you copy that cache from another machine.
+- If you already have transformers 5.x installed, reinstall extras: `pip install -r requirements_extra.txt`
+
 ### Windows (conda / mamba)
 
 **Prerequisites**
@@ -142,6 +154,12 @@ python check_logs.py
 Scripts live in this repo root: `verify_functionality.py`, `check_logs.py`, and `verify_subprocess_streaming.py`. Requires the example dataset in sibling `multi_channel_dataset_creation` (run `create_dataset.py` once; see Windows section above).
 
 This branch has six `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V1 + UPerNet, Swin UPerNet, Swin UPerNet 4-channel RGB+CIR, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
+
+Optional smoke test for Swin pretrained load (needs internet or a local Hugging Face cache):
+
+```sh
+python -c "from transformers import AutoModelForSemanticSegmentation; AutoModelForSemanticSegmentation.from_pretrained('openmmlab/upernet-swin-small'); print('Swin pretrained load OK')"
+```
 
 ---
 
