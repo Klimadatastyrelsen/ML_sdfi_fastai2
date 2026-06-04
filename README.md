@@ -171,6 +171,20 @@ python src/ML_sdfi_fastai2/infer.py --config configs/example_configs/infer_examp
 
 ---
 
+### Evaluation
+
+Configuration file (same as inference):  
+`configs/example_configs/infer_example_dataset.ini`
+
+Run:
+```sh
+python src/ML_sdfi_fastai2/eval.py --config configs/example_configs/infer_example_dataset.ini
+```
+
+Computes **pixel classification accuracy** on all labeled images listed in the benchmark set (non-ignored pixels only). Uses the same config as inference; does not write prediction GeoTIFFs or PDF reports.
+
+---
+
 ### Reporting
 
 Configuration file:  
