@@ -141,7 +141,7 @@ python check_logs.py
 
 Scripts live in this repo root: `verify_functionality.py`, `check_logs.py`, and `verify_subprocess_streaming.py`. Requires the example dataset in sibling `multi_channel_dataset_creation` (run `create_dataset.py` once; see Windows section above).
 
-This branch has five `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V1 + UPerNet, Swin UPerNet, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
+This branch has six `test*.ini` configs (ResNet34, SegFormer, ConvNeXt V1 + UPerNet, Swin UPerNet, Swin UPerNet 4-channel RGB+CIR, etc.). Set `VERIFY_TRAIN_TIMEOUT=1800` for longer training runs if needed.
 
 ---
 
