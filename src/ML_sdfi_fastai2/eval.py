@@ -138,6 +138,7 @@ if __name__ == "__main__":
         "Example usage:\n"
         "python src/ML_sdfi_fastai2/eval.py\n"
         "python src/ML_sdfi_fastai2/eval.py --config configs/example_configs/infer_example_dataset.ini\n"
+        "python src/ML_sdfi_fastai2/eval.py --config config_a.ini config_b.ini\n"
     )
     parser = argparse.ArgumentParser(
         description="Evaluate segmentation model pixel accuracy on a labeled benchmark set.",
@@ -147,8 +148,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--config",
-        default="configs/example_configs/infer_example_dataset.ini",
-        help="Path to infer-style experiment config file",
+        nargs="+",
+        default=["configs/example_configs/infer_example_dataset.ini"],
+        help="One or more paths to infer-style experiment config files",
     )
     args = parser.parse_args()
-    run_eval(args.config)
+    for config_path in args.config:
+        run_eval(config_path)

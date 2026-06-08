@@ -474,6 +474,8 @@ def get_dataset(experiment_settings_dict):
         return label
 
     def get_label_func(experiment_settings_dict):
+        if not "extra_labels" in experiment_settings_dict:
+            return label_func
         if experiment_settings_dict["extra_labels"]=="buildings":
             input("extending labels with buildings")
             return label_plus_building_func
@@ -481,6 +483,7 @@ def get_dataset(experiment_settings_dict):
             #input("using ordinary labels")
             return label_func
         else:
+            print(experiment_settings_dict["extra_labels"])
             sys.exit("experiment_settings_dict['extra_labels'] should be 'buildings' or 'None'")
             
 
