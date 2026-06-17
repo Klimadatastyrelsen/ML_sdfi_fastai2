@@ -29,6 +29,7 @@ from fastai.callback.all import *
 from fastai.vision.learner import unet_learner
 from fastai.callback.schedule import minimum, steep, slide, valley
 from fastai.vision.all import GradientAccumulation
+from fastai.learner import Metric
 
 import utils.utils as sdfi_utils
 import sdfi_dataset
@@ -381,6 +382,30 @@ class ConvNeXt1UPerNetWrapper(nn.Module):
 # ---------------------------------------------------------------------
 # Training class
 # ---------------------------------------------------------------------
+class PixelAccuracy(Metric):
+    """Global pixel accuracy over non-ignored labels per validation epoch."""
+
+    def __init__(self, ignore_index=0):
+        self.ignore_index = int(ignore_index)
+
+    def reset(self):
+        self.correct, self.total = 0, 0
+
+    def accumulate(self, learn):
+        inp, targ = learn.pred, learn.y
+        targ = targ.squeeze(1)
+        mask = targ != self.ignore_index
+        n = int(mask.sum())
+        if n == 0:
+            return
+        self.correct += int((inp.argmax(1)[mask] == targ[mask]).sum())
+        self.total += n
+
+    @property
+    def value(self):
+        return self.correct / self.total if self.total else 0.0
+
+
 class BasicTrainingFastai2:
     def __init__(self, cfg, dls):
         self.cfg = cfg
@@ -421,11 +446,7 @@ class BasicTrainingFastai2:
 
     def _metric(self, ignore):
         """Create accuracy metric that respects ignore_index"""
-        def acc(inp, targ):
-            targ = targ.squeeze(1)
-            mask = targ != ignore
-            return (inp.argmax(1)[mask] == targ[mask]).float().mean()
-        return acc
+        return PixelAccuracy(ignore_index=ignore)
 
     def _build_learner(self, cfg, dls):
         """Build the appropriate learner based on model type"""
