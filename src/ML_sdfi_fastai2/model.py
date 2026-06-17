@@ -383,7 +383,7 @@ def get_dataset(experiment_settings_dict):
     
 
    
-    codes = np.loadtxt(pth/'labels/codes.txt', dtype=str);
+    codes = np.loadtxt(experiment_settings_dict["path_to_codes"], dtype=str);
     print(" codes: "+str( codes))
     
 

@@ -289,6 +289,13 @@ Only configs for which the corresponding `.pth` file exists are uploaded; others
 All example configuration files are compatible with the example dataset available at:  
 👉 [https://github.com/SDFIdk/multi_channel_dataset_creation](https://github.com/SDFIdk/multi_channel_dataset_creation)
 
+Class names are stored in use-case-specific `*_codes.txt` files in the sibling repo (not a single `codes.txt`):
 
+| File | Use with |
+|---|---|
+| `example_dataset/labels/ground_surface_codes.txt` | `example_dataset_ground_surface.gpkg` and `create_dataset_example_dataset.ini` |
+| `example_dataset/labels/building_codes.txt` | `example_dataset_buildings.gpkg` and building-mask workflows |
+
+All example configs in this repo point `path_to_codes` at `ground_surface_codes.txt` because the example dataset is built from the ground-surface GeoPackage. For building-only segmentation, set `path_to_codes` to `building_codes.txt` instead.
 
 
