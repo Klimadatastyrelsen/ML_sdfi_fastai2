@@ -142,6 +142,15 @@ def get_transforms(experiment_settings_dict):
                 #order=100 apply after all other transforms 
                 #Normalize.from_stats has order 99 so 100 will cause the channel coruption to be aplied after the normalizations
                 transforms.append(SegmentationAlbumentationsChannelCorruption(corruptible_channels=experiment_settings_dict["channel_coruption"], p_rotate=0.025, p_flip=0.025, split_idx=0, order=100))
+        elif "windmill_conditional_corruption" == transform_name:
+                #split_idx=0 == only aply on data in trainingset
+                #order=100 run after the crop transform (order=0) so tiles are square for the 90 degree rotation
+                #only fires when a trigger class (e.g windmill) is present in the label, then rotates DSM/DTM together in p fraction of those cases
+                transforms.append(SegmentationAlbumentationsConditionalChannelCorruption(
+                    corruptible_channels=experiment_settings_dict["conditional_corruption_channels"],
+                    trigger_classes=experiment_settings_dict["conditional_corruption_classes"],
+                    p=experiment_settings_dict.get("conditional_corruption_p", 0.5),
+                    split_idx=0, order=100))
         elif "colorJitter" == transform_name:
                 transforms.append(ColorJitter(split_idx=0))
         elif "downsize" == transform_name:
@@ -483,6 +492,54 @@ class SegmentationAlbumentationsChannelCorruption(ItemTransform):
 
         # Return the corrupted image and the unmodified mask
         return ImageBlockReplacement.MultiChannelImage.create(np.array(img_aug, dtype=np.float32)), np.array(mask)
+
+class SegmentationAlbumentationsConditionalChannelCorruption(ItemTransform):
+    """
+    Decorrelates height channels (DSM/DTM) from the rest of the input, but ONLY for tiles that
+    contain a trigger class (e.g. windmills) in the label mask, and only in a fraction of those cases.
+
+    Rationale: DSM/DTM are updated every ~5 years and can be outdated. Objects like windmills may be
+    absent from old height data, so the model should not learn to rely on DSM/DTM to classify them.
+    When the transform fires, the same random k*90 degree rotation is applied to all corruptible
+    channels (so nDSM = DSM - DTM stays physically consistent, just spatially displaced), breaking the
+    spatial correspondence with the RGB/mask while leaving RGB channels and the mask untouched.
+
+    NOTE: DSM/DTM here are raw float32 heights (not 0-255), so this transform stays in float and does
+    NOT cast to uint8 like the other transforms in this module.
+
+    corruptible_channels: list of channel indices to rotate together (e.g. [8, 9] for DSM, DTM)
+    trigger_classes: list of label class id(s) whose presence enables the transform (e.g. windmill code)
+    p: probability of applying the rotation given a trigger class is present in the mask
+    """
+    def __init__(self, corruptible_channels, trigger_classes, p=0.5, split_idx=0, order=100):
+        ItemTransform.__init__(self, split_idx=split_idx, order=order)
+        self.corruptible_channels = corruptible_channels
+        self.trigger_classes = trigger_classes
+        self.p = p
+
+    def encodes(self, x):
+        img, mask = x
+        mask_np = np.array(mask)
+
+        # Only fire when a trigger class is present in the label, and then only in a fraction of cases
+        trigger_present = np.isin(mask_np, self.trigger_classes).any()
+        if not (trigger_present and random.random() < self.p):
+            return x
+
+        # channel, y, x -> y, x, channel ; keep FLOAT (do not clip height values to uint8)
+        img = np.transpose(np.array(img, dtype=np.float32), (1, 2, 0))
+
+        # 90 degree rotation requires square tiles; this transform must run after the crop transform
+        assert img.shape[0] == img.shape[1], \
+            "ConditionalChannelCorruption needs square tiles (run it after the crop transform)"
+
+        # Same rotation for all corruptible channels so DSM/DTM stay mutually consistent
+        k = random.randint(1, 3)  # 90, 180 or 270 degrees
+        for channel_idx in self.corruptible_channels:
+            img[..., channel_idx] = np.rot90(img[..., channel_idx], k)
+
+        img = np.transpose(img, (2, 0, 1))
+        return ImageBlockReplacement.MultiChannelImage.create(np.array(img, dtype=np.float32)), np.array(mask_np)
 
 class SegmentationAlbumentationsTransformSHIFTSCALEROTATE(ItemTransform):
     def __init__(self,split_idx):
