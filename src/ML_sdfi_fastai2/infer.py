@@ -306,7 +306,7 @@ def infer_all(experiment_settings_dict,benchmark_folder,output_folder,show,all_t
 
     #create a classifier
     dls = sdfi_dataset.get_dataset(experiment_settings_dict)
-    training= train.basic_traininFastai2(experiment_settings_dict,dls)
+    training= train.BasicTrainingFastai2(experiment_settings_dict,dls)
     #load saved weights
     training.learn.load(str(pathlib.Path(experiment_settings_dict["model_to_load"]).resolve()).rstrip(".pth"),weights_only=False)
 
@@ -392,7 +392,7 @@ def infer_on_all(experiment_settings_dict,benchmark_folder,output_folder,show,al
 
     #create a classifier
     dls = sdfi_dataset.get_dataset(experiment_settings_dict)
-    training= train.basic_traininFastai2(experiment_settings_dict,dls)
+    training= train.BasicTrainingFastai2(experiment_settings_dict,dls)
     #load saved weights
     training.learn.load(str(pathlib.Path(experiment_settings_dict["model_to_load"]).resolve()).rstrip(".pth"),weights_only=False)
 
