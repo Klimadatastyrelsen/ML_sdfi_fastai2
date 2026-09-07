@@ -567,7 +567,7 @@ def visualize_transforms(experiment_settings_dict,image,save_images):
         #set_seed(dls) when visualizing a single image we want to aply different transforms every time
         training= train.basic_traininFastai2(experiment_settings_dict,dls)
         #load saved weights
-        training.learn.load(str(experiment_settings_dict["model_to_load"]).rstrip(".pth"))
+        training.learn.load(str(Path(experiment_settings_dict["model_to_load"]).with_suffix("")))
         print("####################################################################################")
         print("######################NOW PREDICTING ON THE IMAGE###########################")
         print("image:"+str(image))

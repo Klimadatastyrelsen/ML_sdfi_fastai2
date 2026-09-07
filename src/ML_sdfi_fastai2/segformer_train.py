@@ -306,7 +306,7 @@ class basic_traininFastai2:
         if self.experiment_settings_dict["model_to_load"]:
             print("loading :"+str(self.experiment_settings_dict["model_to_load"]))    
             #load save weights
-            self.learn.load(str(self.experiment_settings_dict["model_to_load"]).rstrip(".pth"))
+            self.learn.load(str(Path(self.experiment_settings_dict["model_to_load"]).with_suffix("")))
         else:
             print("no model to load..")    
 

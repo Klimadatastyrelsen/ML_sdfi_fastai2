@@ -111,7 +111,7 @@ def run_eval(config_path):
 
     trainer = train.BasicTrainingFastai2(cfg, dls)
     model_path = pathlib.Path(cfg["model_to_load"]).resolve()
-    trainer.learn.load(str(model_path).rstrip(".pth"), weights_only=False)
+    trainer.learn.load(str(model_path.with_suffix("")), weights_only=False)
 
     if torch.cuda.is_available():
         trainer.learn.model.cuda()

@@ -575,7 +575,7 @@ class BasicTrainingFastai2:
         # Load pretrained weights if specified
         if self.cfg.get("model_to_load"):
             print(f"Loading: {self.cfg['model_to_load']}")
-            self.learn.load(str(self.cfg["model_to_load"]).rstrip(".pth"))
+            self.learn.load(str(pathlib.Path(self.cfg["model_to_load"]).with_suffix("")))
         
         # Freeze/unfreeze
         if self.cfg.get("freeze", False):
