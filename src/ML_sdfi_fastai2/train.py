@@ -15,6 +15,7 @@ import os
 import sys
 import time
 import json
+import math
 import random
 import pathlib
 import argparse
@@ -58,17 +59,30 @@ def make_deterministic():
 # CSV logger with LR
 # ---------------------------------------------------------------------
 class CSVLoggerWithLR(CSVLogger):
-    def after_epoch(self):
-        lrs = [g['lr'] for g in self.learn.opt.param_groups]
-        log_values = self.learn.recorder.log + lrs
+    """fastai CSVLogger with one lr column per optimizer param group.
 
-        if not hasattr(self, 'header_written'):
-            self.file.write(','.join(self.learn.recorder.metric_names +
-                                     [f'lr_{i}' for i in range(len(lrs))]) + '\n')
-            self.header_written = True
+    fastai's CSVLogger writes each epoch row itself by hooking `learn.logger`
+    (`_write_line`). Overriding `after_epoch` to write a second row, as an
+    earlier version did, produced every epoch twice (once without and once
+    with lr columns). We therefore extend `_write_line` and the header instead.
+    """
+    def _lrs(self):
+        return [g['lr'] for g in self.learn.opt.param_groups]
 
-        self.file.write(','.join(map(str, log_values)) + '\n')
+    def before_fit(self):
+        if hasattr(self, "gather_preds"):
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.file = (self.path / self.fname).open('a' if self.append else 'w')
+        lr_names = [f'lr_{i}' for i in range(len(self._lrs()))]
+        self.file.write(','.join(list(self.recorder.metric_names) + lr_names) + '\n')
+        self.old_logger, self.learn.logger = self.logger, self._write_line
+
+    def _write_line(self, log):
+        self.file.write(','.join(str(t) for t in list(log) + self._lrs()) + '\n')
         self.file.flush()
+        os.fsync(self.file.fileno())
+        self.old_logger(log)
 
 
 # ---------------------------------------------------------------------
@@ -91,6 +105,245 @@ class DoThingsAfterBatch(Callback):
             print("Batch save filename:" + self.iter_string + self.lr_string)
             self.learn.save(self.iter_string)
             print("Batch model saved!")
+
+
+# ---------------------------------------------------------------------
+# NaN guard: classify, react and report non-finite losses
+# ---------------------------------------------------------------------
+def _all_finite(t):
+    return bool(torch.isfinite(t).all()) if isinstance(t, torch.Tensor) else True
+
+
+class NaNGuard(Callback):
+    """Detect non-finite training losses, name the cause, keep training and keep logs finite.
+
+    Per training batch with a non-finite loss (checked in `after_loss`):
+      input_nonfinite   nan/inf in the input batch        -> skip batch
+      void_target       no pixel outside ignore_index     -> skip batch
+      diverged          nan/inf in model weights          -> stop the fit (fatal)
+      pred_nonfinite    nan/inf in the prediction         -> skip batch (fp16 overflow / spike)
+      loss_numerics     everything else finite            -> skip batch (loss function itself)
+
+    Skipping = `CancelBatchException` from `after_loss`: no backward, no step.
+    `learn.loss` is replaced with the last finite loss so fastai's smoothed
+    train_loss (an exponential moving average that is never reset) stays finite.
+
+    Per epoch: prints a summary and appends a row to `<job_name>_nan_report.csv`
+    in the log folder (learn.path).
+
+    order=20 places this after MixedPrecision (10), whose `after_loss` must
+    exit autocast before we can cancel the batch, and before Recorder (50).
+    """
+    order = 20
+    CAUSES = ("input_nonfinite", "void_target", "diverged", "pred_nonfinite", "loss_numerics")
+
+    # Causes for which the learning rate is a plausible driver.
+    LR_CAUSES = ("diverged", "pred_nonfinite")
+    # The lr at which the loss turns non-finite is a ceiling, not the culprit:
+    # the weights drift over several earlier steps. Suggest well below it.
+    LR_MARGIN = 0.5
+
+    def __init__(self, ignore_index=255, report_name="nan_report.csv", max_prints_per_epoch=5,
+                 lr_max=None, lr_source="config", lr_multiplier=None):
+        self.ignore_index = int(ignore_index)
+        self.report_name = report_name
+        self.max_prints_per_epoch = max_prints_per_epoch
+        self.lr_max = None if lr_max is None else float(lr_max)   # peak lr of the schedule
+        self.lr_source = lr_source                                # "config" or "lr_finder"
+        self.lr_multiplier = lr_multiplier                        # lr_valley multiplier when lr_finder
+
+    def before_fit(self):
+        self._last_finite_loss = None
+        # Fit-level lr bookkeeping for the suggestion.
+        self.max_lr_seen = 0.0
+        self.min_nan_lr = None          # lowest lr at which an LR-related nan occurred during warm-up
+        self.after_peak_events = 0      # LR-related nans that occurred after a higher lr was survived
+        self.after_peak_survived_lr = None
+        self._reset_epoch_counts()
+
+    # ---- lr suggestion -------------------------------------------------
+    @staticmethod
+    def _round_sig(x, sig=2):
+        return float(f"{x:.{sig}g}")
+
+    def _record_lr_event(self, cause, lr):
+        if cause not in self.LR_CAUSES or not math.isfinite(lr):
+            return
+        if lr < self.max_lr_seen * (1 - 1e-6):
+            # Annealing phase: the model already survived a higher lr.
+            self.after_peak_events += 1
+            self.after_peak_survived_lr = self.max_lr_seen
+        else:
+            self.min_nan_lr = lr if self.min_nan_lr is None else min(self.min_nan_lr, lr)
+
+    def suggested_lr(self):
+        """Peak lr to stay below the first LR-related nan, or None if not applicable."""
+        if self.min_nan_lr is None:
+            return None
+        return self._round_sig(self.min_nan_lr * self.LR_MARGIN)
+
+    def lr_advice(self):
+        """Human readable advice; '' when there is nothing LR-related to say."""
+        parts = []
+        s = self.suggested_lr()
+        if s is not None:
+            msg = (f"non-finite loss first appeared at lr={self.min_nan_lr:.3e} while the lr was rising"
+                   f" (schedule peak {self.lr_max:.3e}, from {self.lr_source}). "
+                   f"Suggestion (heuristic, margin {self.LR_MARGIN}): keep the peak lr at most {s:.3g}")
+            if self.lr_source == "lr_finder" and self.lr_multiplier and self.lr_max:
+                new_mult = self._round_sig(self.lr_multiplier * s / self.lr_max)
+                msg += (f", i.e. lower the lr_valley multiplier in train_experiment from "
+                        f"{self.lr_multiplier} to about {new_mult:g}, or set lr = {s:.3g} in the config")
+            else:
+                msg += f", i.e. set lr = {s:.3g} in the config"
+            msg += (". Alternatives that keep the peak: longer warm-up (pct_start), stronger "
+                    "gradient_clip, bf16 instead of fp16.")
+            parts.append(msg)
+        if self.after_peak_events:
+            parts.append(f"{self.after_peak_events} LR-related nan(s) occurred after the model had already "
+                         f"survived lr={self.after_peak_survived_lr:.3e}; the lr value is probably not the "
+                         f"sole cause there (accumulated instability, fp16 range, or data).")
+        return " ".join(parts)
+
+    def _reset_epoch_counts(self):
+        self.counts = {c: 0 for c in self.CAUSES}
+        self.valid_nonfinite = 0
+        self.first_iter = None
+        self.first_lr = None
+        self.first_cause = None
+        self._n_printed = 0
+
+    def _current_lr(self):
+        try:
+            return float(self.opt.hypers[-1]['lr'])
+        except Exception:
+            return float('nan')
+
+    def _classify(self):
+        if not all(_all_finite(x) for x in self.xb):
+            return "input_nonfinite"
+        targ = self.yb[0]
+        if not bool((targ != self.ignore_index).any()):
+            return "void_target"
+        if not all(_all_finite(p) for p in self.learn.model.parameters()):
+            return "diverged"
+        if not _all_finite(self.pred):
+            return "pred_nonfinite"
+        return "loss_numerics"
+
+    def after_loss(self):
+        if len(self.yb) == 0:
+            return
+        loss = self.loss
+        if not self.training:
+            # Validation: never alter valid_loss (it is a plain per-epoch mean and
+            # a nan there is real information), only count it for the report.
+            if not _all_finite(loss):
+                self.valid_nonfinite += 1
+            return
+        lr = self._current_lr()
+        if math.isfinite(lr):
+            self.max_lr_seen = max(self.max_lr_seen, lr)
+        if _all_finite(loss):
+            self._last_finite_loss = loss.detach().clone()
+            return
+
+        cause = self._classify()
+        self.counts[cause] += 1
+        self._record_lr_event(cause, lr)
+        if self.first_iter is None:
+            self.first_iter, self.first_lr, self.first_cause = int(self.iter), lr, cause
+        if self._n_printed < self.max_prints_per_epoch:
+            self._n_printed += 1
+            print(f"[NaNGuard] epoch {self.epoch} iter {self.iter}/{self.n_iter} lr={lr:.3e}: "
+                  f"non-finite loss, cause={cause}, batch skipped"
+                  + (" -> STOPPING" if cause == "diverged" else ""))
+
+        # Keep the logged/smoothed train loss finite.
+        self.learn.loss = (self._last_finite_loss if self._last_finite_loss is not None
+                           else torch.zeros_like(loss))
+
+        if cause == "diverged":
+            self._write_report_row(fatal=True)
+            print("[NaNGuard] Model weights are non-finite. Training cannot recover; stopping fit.")
+            advice = self.lr_advice()
+            if advice:
+                print("[NaNGuard] " + advice)
+            raise CancelFitException()
+        raise CancelBatchException()
+
+    def _summary(self):
+        return {c: self.counts[c] for c in self.CAUSES if self.counts[c]}
+
+    def _write_report_row(self, fatal=False):
+        path = Path(self.learn.path) / self.report_name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_header = not path.exists()
+        with open(path, 'a') as f:
+            if write_header:
+                f.write(','.join(['epoch', 'first_iter', 'first_lr', 'first_cause', 'fatal']
+                                 + list(self.CAUSES) + ['valid_nonfinite',
+                                 'config_lr', 'lr_source', 'suggested_lr']) + '\n')
+            s = self.suggested_lr()
+            f.write(','.join(map(str, [
+                int(self.epoch),
+                '' if self.first_iter is None else self.first_iter,
+                '' if self.first_lr is None else f"{self.first_lr:.6e}",
+                self.first_cause or '',
+                int(fatal),
+            ] + [self.counts[c] for c in self.CAUSES] + [
+                self.valid_nonfinite,
+                '' if self.lr_max is None else f"{self.lr_max:.6e}",
+                self.lr_source,
+                '' if s is None else f"{s:.6e}",
+            ])) + '\n')
+
+    def after_epoch(self):
+        total = sum(self.counts.values())
+        if total:
+            print(f"[NaNGuard] epoch {self.epoch}: {total} non-finite training batch(es) skipped, "
+                  f"first at iter {self.first_iter} (lr={self.first_lr:.3e}), causes={self._summary()}")
+            if any(self.counts[c] for c in self.LR_CAUSES):
+                advice = self.lr_advice()
+                if advice:
+                    print("[NaNGuard] " + advice)
+        if self.valid_nonfinite:
+            print(f"[NaNGuard] epoch {self.epoch}: {self.valid_nonfinite} validation batch(es) had a "
+                  f"non-finite loss; valid_loss for this epoch is not reliable (check validation data).")
+        if total or self.valid_nonfinite:
+            self._write_report_row(fatal=False)
+        self._reset_epoch_counts()
+
+    def after_fit(self):
+        advice = self.lr_advice()
+        if advice:
+            print("[NaNGuard] fit summary: " + advice)
+
+
+class SkipNonFiniteGradStep(Callback):
+    """fp32 only: skip the optimizer step when any gradient is non-finite.
+
+    Under fp16, MixedPrecision/GradScaler already skips such steps. Under fp32
+    nothing does, and GradientClip would multiply every gradient by a nan norm.
+    order=9 runs before MixedPrecision (10) and GradientClip (11); we do nothing
+    when a GradScaler is active because cancelling before `scaler.step` breaks
+    `scaler.update`.
+    """
+    order = 9
+
+    def before_fit(self):
+        self.n_skipped = 0
+
+    def before_step(self):
+        if getattr(self.learn, 'scaler', None) is not None:
+            return
+        for p in self.learn.model.parameters():
+            if p.grad is not None and not _all_finite(p.grad):
+                self.n_skipped += 1
+                print(f"[NaNGuard] epoch {self.epoch} iter {self.iter}: finite loss but non-finite "
+                      f"gradient, optimizer step skipped (total {self.n_skipped})")
+                self.learn.opt.zero_grad()
+                raise CancelStepException()
 
 
 # ---------------------------------------------------------------------
@@ -132,16 +385,43 @@ class FocalLoss(nn.Module):
         return (self.alpha * (1 - pt) ** self.gamma * ce).mean()
 
 
+def _zero_if_all_ignored(loss, pred, target, ignore_index):
+    """Return a finite 0 loss when no pixel in the batch counts towards the loss.
+
+    nn.CrossEntropyLoss(reduction='mean') returns nan for a batch where every
+    target pixel equals ignore_index. Its gradient is already zero, so training
+    is unaffected, but fastai's smoothed train_loss is an exponential moving
+    average that is never reset during fit. One nan poisons it for the rest
+    of the run. Replacing it with 0 keeps the logged train_loss meaningful.
+
+    The zero is built from `pred` (not from the nan loss) so it is finite and
+    still attached to the graph, letting `backward()` run with zero gradients.
+    """
+    if bool((target != ignore_index).any()):
+        return loss
+    return pred.sum() * 0.0
+
+
+class CrossEntropyLossFlatSafe(CrossEntropyLossFlat):
+    """CrossEntropyLossFlat that returns 0 instead of nan for all-ignored batches."""
+
+    def __call__(self, inp, targ, **kwargs):
+        loss = super().__call__(inp, targ, **kwargs)
+        return _zero_if_all_ignored(loss, inp, targ, self.func.ignore_index)
+
+
 class CombinedLoss(nn.Module):
     def __init__(self, ce_weight=0.5, dice_weight=0.5, ignore_index=255, class_weights=None):
         super().__init__()
         self.ce_weight = ce_weight
         self.dice_weight = dice_weight
+        self.ignore_index = ignore_index
         self.ce_loss = nn.CrossEntropyLoss(ignore_index=ignore_index, weight=class_weights)
         self.dice_loss = DiceLoss(ignore_index=ignore_index)
 
     def forward(self, pred, target):
-        ce = self.ce_loss(pred, target.squeeze(1).long())
+        target_long = target.squeeze(1).long()
+        ce = _zero_if_all_ignored(self.ce_loss(pred, target_long), pred, target_long, self.ignore_index)
         dice = self.dice_loss(pred, target)
         return self.ce_weight * ce + self.dice_weight * dice
 
@@ -442,7 +722,7 @@ class BasicTrainingFastai2:
             return CombinedLoss(ignore_index=ignore, class_weights=weights)
 
         print(f"Using CrossEntropyLoss with ignore_index={ignore}")
-        return CrossEntropyLossFlat(axis=1, ignore_index=ignore, weight=weights)
+        return CrossEntropyLossFlatSafe(axis=1, ignore_index=ignore, weight=weights)
 
     def _metric(self, ignore):
         """Create accuracy metric that respects ignore_index"""
@@ -585,7 +865,12 @@ class BasicTrainingFastai2:
         
         # Setup callbacks
         n_batch = self.cfg.get("save_on_batch_iter_modulus_n", 0)
-        start_epoch = self.cfg.get("last_epoch", -1) + 1
+        # last_epoch = false / missing means a fresh run. (`False + 1 == 1` would
+        # otherwise make SkipToEpoch skip epoch 0 of the schedule.)
+        last_epoch = self.cfg.get("last_epoch", -1)
+        if last_epoch is False or last_epoch is None:
+            last_epoch = -1
+        start_epoch = int(last_epoch) + 1
         
         cbs = [
             GradientAccumulation(self.cfg.get("n_acc", 1)),
@@ -597,6 +882,14 @@ class BasicTrainingFastai2:
                 with_opt=True
             ),
             CSVLoggerWithLR(fname=self.cfg["job_name"] + ".csv", append=True),
+            NaNGuard(
+                ignore_index=int(self.cfg.get("ignore_index", 255)),
+                report_name=self.cfg["job_name"] + "_nan_report.csv",
+                lr_max=lr,
+                lr_source="config" if "lr" in self.cfg else "lr_finder",
+                lr_multiplier=self.cfg.get("lr_finder_multiplier"),
+            ),
+            SkipNonFiniteGradStep(),
         ]
         
         #if n_batch > 0:
@@ -648,9 +941,11 @@ def train_experiment(cfg):
             print(f"Multiplying lr_valley by {multiply_with} for fit_one_cycle")
             max_lr = lr_valley * multiply_with
         else:
+            multiply_with = 1
             max_lr = lr_valley
         
         cfg["lr_finder_lr"] = max_lr
+        cfg["lr_finder_multiplier"] = multiply_with
     
     print(f"max_lr: {max_lr}")
     print(f"job_name: {cfg['job_name']}")
