@@ -823,6 +823,9 @@ class BasicTrainingFastai2:
                 model_dir=cfg["model_folder"]
             )
 
+        # bf16 needs Ampere or newer; it has the fp32 exponent range, so no loss scaling / fp16 overflow.
+        if cfg.get("to_bf16", False):
+            return learn.to_bf16()
         return learn.to_fp16() if cfg.get("to_fp16", False) else learn
 
     def find_learning_rate(self, show_images=False):
