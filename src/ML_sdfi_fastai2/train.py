@@ -12,6 +12,8 @@ Supported architectures:
 """
 
 import os
+# numpy reads this at import time; also inherited by spawned subprocesses
+os.environ.setdefault("NUMPY_MADVISE_HUGEPAGE", "0")
 import sys
 import time
 import json
@@ -20,6 +22,12 @@ import random
 import pathlib
 import argparse
 import numpy as np
+try:
+    from numpy._core import multiarray as _np_multiarray  # numpy >= 2
+except ImportError:
+    from numpy.core import multiarray as _np_multiarray  # numpy 1.x
+# Huge-page madvise on large arrays makes the kernel stall on memory compaction when RAM is fragmented (~5x slower data loaders).
+_np_multiarray._set_madvise_hugepage(os.environ["NUMPY_MADVISE_HUGEPAGE"] != "0")
 import torch
 import torch.nn.functional as F
 from torch import nn
