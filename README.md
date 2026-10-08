@@ -11,7 +11,7 @@ Machine learning framework developed and maintained by **KDS** for performing **
 
 Use **conda** or **mamba** (Miniforge includes conda; mamba is optional). Run the steps below **from this repository root**.
 
-**Repository layout:** clone at least **`ML_sdfi_fastai2`** and **[`multi_channel_dataset_creation`](https://github.com/SDFIdk/multi_channel_dataset_creation)** as siblings (same parent folder). `ML_Production` and `ML_geo_production` are optional (production pipelines). `install_local_repos.sh` skips any sibling that is not present.
+**Repository layout:** clone at least **`ML_sdfi_fastai2`** and **[`multi_channel_dataset_creation`](https://github.com/Klimadatastyrelsen/multi_channel_dataset_creation)** as siblings (same parent folder). `ML_Production` and `ML_geo_production` are optional (production pipelines). `install_local_repos.sh` skips any sibling that is not present.
 
 ```sh
 conda env create --file environment.yml   # once
@@ -52,7 +52,7 @@ python -c "import torch, transformers; print('torch', torch.__version__); print(
 - [Miniforge](https://github.com/conda-forge/miniforge) or Anaconda with `conda` on PATH
 - NVIDIA GPU and driver (CUDA required for training and automated verification)
 - [Git for Windows](https://git-scm.com/download/win) (for `bash install_*.sh`, or use the PowerShell PyTorch script below)
-- Sibling clone: [`multi_channel_dataset_creation`](https://github.com/SDFIdk/multi_channel_dataset_creation) next to this repo
+- Sibling clone: [`multi_channel_dataset_creation`](https://github.com/Klimadatastyrelsen/multi_channel_dataset_creation) next to this repo
 
 **Install (PowerShell, from `ML_sdfi_fastai2` root)**
 
@@ -288,7 +288,7 @@ Only configs for which the corresponding `.pth` file exists are uploaded; others
 ## Example Dataset
 
 All example configuration files are compatible with the example dataset available at:  
-👉 [https://github.com/SDFIdk/multi_channel_dataset_creation](https://github.com/SDFIdk/multi_channel_dataset_creation)
+👉 [https://github.com/Klimadatastyrelsen/multi_channel_dataset_creation](https://github.com/Klimadatastyrelsen/multi_channel_dataset_creation)
 
 Class names are stored in use-case-specific `*_codes.txt` files in the sibling repo (not a single `codes.txt`):
 

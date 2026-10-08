@@ -22,7 +22,7 @@ dependencies:
       - fastai>=2.7.14
       - git+https://github.com/rasmuspjohansson/albumentations-multi-channels
       - git+https://github.com/walkwithfastai/walkwithfastai.github.io
-      - git+https://github.com/SDFIdk/multi_channel_dataset_creation.git
+      - git+https://github.com/Klimadatastyrelsen/multi_channel_dataset_creation.git
       - psycopg2-binary
       - reportlab
       - transformers>=4.44,<5  # SegFormer / Swin UPerNet; 5.x needs newer torch than 2.6
