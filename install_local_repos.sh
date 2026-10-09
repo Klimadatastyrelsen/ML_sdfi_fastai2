@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
-# Install sibling repos in editable mode. Skips siblings that are not cloned.
-# Required for examples/verify: multi_channel_dataset_creation
-# Optional: ML_geo_production, ML_Production
+# Install the shared-environment repos in editable mode.
+#
+# Identical in all four repos, so it cannot assume which one it is run from:
+# it installs every repo of the group by name, including the current one, and
+# skips any that are not checked out.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PARENT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+SHARED_REPOS=(
+  ML_geo_production
+  multi_channel_dataset_creation
+  ML_sdfi_fastai2
+  ML_Production
+)
 
 install_sibling() {
   local name="$1"
@@ -19,9 +28,6 @@ install_sibling() {
   fi
 }
 
-install_sibling ML_geo_production
-install_sibling multi_channel_dataset_creation
-install_sibling ML_Production
-
-echo "INSTALL_LOCAL: ML_sdfi_fastai2"
-(cd "${SCRIPT_DIR}" && pip install -e .)
+for repo in "${SHARED_REPOS[@]}"; do
+  install_sibling "${repo}"
+done
