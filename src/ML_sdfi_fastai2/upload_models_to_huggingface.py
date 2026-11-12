@@ -65,7 +65,7 @@ def main():
     parser.add_argument(
         "--repo_id",
         type=str,
-        default="rasmuspjohansson/KDS_buildings",
+        default="Danish-Agency-for-Cimate-Data/KDS_buildings",
         help="Hugging Face repo id (e.g. username/repo_name)",
     )
     parser.add_argument(

@@ -235,7 +235,7 @@ epoch,train_loss,valid_loss,valid_accuracy,time,lr_0,lr_1,lr_2
 
 ### Downloading and uploading models (Hugging Face)
 
-Trained `.pth` models can be downloaded from or uploaded to [Hugging Face Hub](https://huggingface.co/). The default repo used by the scripts is [rasmuspjohansson/KDS_buildings](https://huggingface.co/rasmuspjohansson/KDS_buildings). The dependency `huggingface_hub` is included in the environment; ensure it is installed (`pip install huggingface_hub` if needed).
+Trained `.pth` models can be downloaded from or uploaded to [Hugging Face Hub](https://huggingface.co/). The default repo used by the scripts is [Danish-Agency-for-Cimate-Data/KDS_buildings](https://huggingface.co/Danish-Agency-for-Cimate-Data/KDS_buildings). The KDS models and datasets on Hugging Face are private. They are available for non-commercial use; email rajoh@kds.dk for access. The dependency `huggingface_hub` is included in the environment; ensure it is installed (`pip install huggingface_hub` if needed).
 
 #### Download models from Hugging Face
 
@@ -253,7 +253,7 @@ python src/ML_sdfi_fastai2/download_models_from_huggingface.py \
 ```
 
 Options:
-- `--repo_id`: Hugging Face repo (default: `rasmuspjohansson/KDS_buildings`)
+- `--repo_id`: Hugging Face repo (default: `Danish-Agency-for-Cimate-Data/KDS_buildings`)
 - `--output_dir`: Local directory where files are saved (required)
 - `--model_file`: If set, only this filename is downloaded; otherwise all `.pth` files in the repo are downloaded
 - `--token_file`: Path to a file containing your Hugging Face token (for private repos). Default: `../laz-superpoint_transformer/hftoken_write.txt` relative to the project root
@@ -278,7 +278,7 @@ python src/ML_sdfi_fastai2/upload_models_to_huggingface.py \
 Options:
 - `--config_dir`: Directory containing `train_*.ini` config files (default: `/mnt/T/mnt/config_files/bygnings_udpegning/2026_production`)
 - `--token_file`: Path to a file containing your Hugging Face **write** token. Default: `../laz-superpoint_transformer/hftoken_write.txt` relative to the project root
-- `--repo_id`: Target Hugging Face repo (default: `rasmuspjohansson/KDS_buildings`)
+- `--repo_id`: Target Hugging Face repo (default: `Danish-Agency-for-Cimate-Data/KDS_buildings`)
 - `--dry_run`: List configs and model paths that would be uploaded without uploading
 
 Only configs for which the corresponding `.pth` file exists are uploaded; others are skipped with a message.
